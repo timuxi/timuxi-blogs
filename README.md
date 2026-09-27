@@ -1,13 +1,5 @@
 # Timuxi 学习笔记
 
-A static copy of the blog formerly hosted at
-`timuxi-blogs-5ylurrg9v4k.qoder.website`, rebuilt so it can be served from
-GitHub Pages.
-
-原站是一个 React + Vite 打包出来的纯前端单页应用（SPA），全部文章内容都内联在
-JS bundle 里。本仓库把构建产物原样镜像下来，去掉了 Qoder 浮水印，并把资源路径
-改成可在 GitHub Pages 子路径下工作的形式。
-
 ## 部署 (GitHub Pages)
 
 仓库根目录本身就是可部署的站点，不需要构建步骤：
