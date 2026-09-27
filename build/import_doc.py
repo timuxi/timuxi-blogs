@@ -10,9 +10,10 @@ as literal text. This script converts the common "centered image" pattern
       <img src="foo.png" alt="描述" width="520">
     </div>
 
-into a plain markdown image, and copies/scales the referenced images into the
-site's image directory. The `width` attribute is baked into the file by
-resizing the bitmap, because markdown has no way to express display width.
+(also `<p align="center">`, `<center>`, or a bare `<img>`) into a plain
+markdown image, and copies/scales the referenced images into the site's image
+directory. The `width` attribute is baked into the file by resizing the
+bitmap, because markdown has no way to express display width.
 
 Usage
 -----
@@ -47,19 +48,33 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTICLES = os.path.join(ROOT, "content", "articles.json")
 IMAGES_ROOT = os.path.join(ROOT, "images")
 
-# <div align="center"><img ...></div>  (whitespace tolerant)
+# <div|p|span align="center"><img ...></div|p|span>  (whitespace tolerant)
 IMG_BLOCK = re.compile(
-    r'<div\s+align="center">\s*(<img\b[^>]*>)\s*</div>',
+    r'<(div|p|span)\b[^>]*\balign=["\']center["\'][^>]*>\s*(<img\b[^>]*>)\s*</\1>',
     re.IGNORECASE,
 )
+# <center><img ...></center>
+IMG_CENTER = re.compile(
+    r'<center>\s*(<img\b[^>]*>)\s*</center>',
+    re.IGNORECASE,
+)
+# any remaining bare <img ...>
 IMG_TAG = re.compile(r'<img\b[^>]*>', re.IGNORECASE)
-ATTR = re.compile(r'([a-zA-Z-]+)\s*=\s*"([^"]*)"')
+ATTR = re.compile(r'([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')')
 
 H1 = re.compile(r'^#\s+.*$', re.MULTILINE)
 
 
 def parse_attrs(tag):
-    return {k.lower(): v for k, v in ATTR.findall(tag)}
+    """Parse attributes from an HTML tag, tolerating single or double quotes."""
+    out = {}
+    for m in ATTR.finditer(tag):
+        # findall() reports non-participating groups as "" rather than None,
+        # which cannot be told apart from a genuinely empty value, so use
+        # finditer() and .group() here.
+        val = m.group(2) if m.group(2) is not None else m.group(3)
+        out[m.group(1).lower()] = val
+    return out
 
 
 def drop_leading_h1(text):
@@ -92,27 +107,36 @@ def png_size(path):
 def convert_images(text, src_dir, out_dir, url_prefix, dry_run=False):
     """Rewrite centered <img> blocks into markdown images.
 
+    Handles the three shapes seen in source documents:
+        <div|p|span align="center"><img ...></div|p|span>
+        <center><img ...></center>
+        <img ...>                      (bare, converted with a warning)
+
     Returns (new_text, stats) where stats is a list of dicts describing each
     image: name, orig size, target width, whether it will be resized.
     """
     stats = []
+    warned = set()
     if not dry_run:
         os.makedirs(out_dir, exist_ok=True)
 
-    def repl(m):
-        tag = m.group(1)
+    def emit(tag, wrapped):
         a = parse_attrs(tag)
         src = a.get("src", "")
         alt = a.get("alt", "")
         width = a.get("width", "")
 
+        # source paths may carry a sub-directory (e.g. charts/fig1.png); we
+        # flatten to the basename since the images land in one target dir
         name = os.path.basename(src)
         src_path = os.path.join(src_dir, src)
         dst_path = os.path.join(out_dir, name)
 
         if not os.path.exists(src_path):
-            print("  !! 源图片缺失: %s" % src_path)
-            return m.group(0)
+            if src not in warned:
+                warned.add(src)
+                print("  !! 源图片缺失: %s" % src_path)
+            return tag
 
         size = png_size(src_path)
         target = int(width) if width.isdigit() else None
@@ -133,12 +157,14 @@ def convert_images(text, src_dir, out_dir, url_prefix, dry_run=False):
             "orig": "%dx%d" % size if size else "?",
             "width": target,
             "resized": will_resize,
-            "kept": not will_resize,
+            "wrapped": wrapped,
         })
         return "![%s](%s%s)" % (alt, url_prefix, name)
 
-    new = IMG_BLOCK.sub(repl, text)
-    return new, stats
+    text = IMG_BLOCK.sub(lambda m: emit(m.group(2), True), text)
+    text = IMG_CENTER.sub(lambda m: emit(m.group(1), True), text)
+    text = IMG_TAG.sub(lambda m: emit(m.group(0), False), text)
+    return text, stats
 
 
 def main():
@@ -148,7 +174,7 @@ def main():
     ap.add_argument("--title", required=True)
     ap.add_argument("--date", required=True, help="YYYY-MM-DD")
     ap.add_argument("--category", required=True)
-    ap.add_argument("--tags", required=True, help="逗号分隔")
+    ap.add_argument("--tags", required=True, help="逗号分隔（支持中英文逗号）")
     ap.add_argument("--excerpt", required=True)
     ap.add_argument("--image-dir", default=None,
                     help="images/ 下的子目录名，默认取 markdown 文件名")
@@ -184,9 +210,14 @@ def main():
     print("图片     : %d 张 -> %s" % (len(stats), out_dir))
     for s in stats:
         act = "缩放到" if s["resized"] else "保持原尺寸"
-        print("   %-16s %-11s %s%s" % (
+        print("   %-24s %-11s %s%s" % (
             s["name"], s["orig"], act,
             (" %dpx" % s["width"]) if s["width"] else ""))
+
+    bare = [s["name"] for s in stats if not s["wrapped"]]
+    if bare:
+        print("  !! %d 张图未包裹在居中标签内（已转换，靠 CSS 居中）: %s"
+              % (len(bare), bare))
 
     # 转换之后正文里不该再有任何 HTML 标签
     remaining = sorted({t[1] for t in
@@ -199,7 +230,7 @@ def main():
         "title": args.title,
         "date": args.date,
         "category": args.category,
-        "tags": [t.strip() for t in args.tags.split(",") if t.strip()],
+        "tags": [t.strip() for t in re.split(r"[,，]", args.tags) if t.strip()],
         "excerpt": args.excerpt,
         "content": text,
     }

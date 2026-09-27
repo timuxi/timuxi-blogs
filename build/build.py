@@ -14,6 +14,12 @@ It is parsed and injected into the JS bundle, replacing the original inline
 array. To add or edit a post, edit that file (image paths stay canonical,
 i.e. "/images/..." without the deploy base) and re-run this script.
 
+Ordering: the file is kept in append order, and two derived lists are
+generated from it --
+  * the category filter buttons keep the file's first-appearance order
+  * the post array itself is sorted by date, newest first, because the home
+    page renders that array verbatim and does not sort it
+
 What it patches
 ---------------
 index.html / 404.html
@@ -57,6 +63,17 @@ ARR_START = "Hr=["
 ARR_END = "}];function Ur("
 CAT_START = "Vr=["  # home page category filter buttons
 BASE_SENTINEL = "(0,A.jsx)(Hn,{children:"  # react-router <Router> mount point
+
+# The table-of-contents component re-derives heading anchors from the heading
+# text instead of reading the ids rehype-slug already put in the DOM. Its
+# slugify matches rehype-slug, but it does not de-duplicate repeated headings,
+# so an article with two "结论" sections gets two TOC links to the first one.
+# Make it append -1, -2 ... exactly like rehype-slug/github-slugger does.
+TOC_ANCHOR = "n.push({level:e,text:r,id:i})"
+TOC_PATCH = (
+    "if(n.some(x=>x.id===i)){let c=1;for(;n.some(x=>x.id===i+`-`+c);)c++;i=i+`-`+c}"
+    + TOC_ANCHOR
+)
 
 
 def norm_base(raw: str) -> str:
@@ -127,9 +144,14 @@ def replace_articles(js: str, articles) -> str:
     if cat_start == -1:
         raise SystemExit("ERROR: could not locate the category list")
 
+    # The home page renders this array in place and never sorts it, so ship
+    # the posts newest-first. The category buttons keep their articles.json
+    # order (i.e. append order) so they stay stable as posts are added.
+    ordered = sorted(articles, key=lambda a: a["date"], reverse=True)
+
     return (js[:cat_start]
             + "Vr=" + js_literal(cats)
-            + ",Hr=" + js_literal(articles)
+            + ",Hr=" + js_literal(ordered)
             + js[end:])
 
 
@@ -160,6 +182,11 @@ def build(base: str) -> None:
     js = open(os.path.join(ORIGIN, "app.js"), encoding="utf-8").read()
 
     js = replace_articles(js, articles)
+
+    before = js
+    js = js.replace(TOC_ANCHOR, TOC_PATCH, 1)
+    if js == before:
+        raise SystemExit("ERROR: TOC anchor de-duplication patch did not apply")
 
     before = js
     js = js.replace(
