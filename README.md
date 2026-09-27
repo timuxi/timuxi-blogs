@@ -12,6 +12,7 @@ assets/             # JS / CSS / KaTeX 字体
 images/dsv4/        # 文章里的两张配图
 content/articles.json  # 从 bundle 里抽出的文章数据（备查/后续编辑）
 build/              # 原始构建产物 + 重新生成脚本
+tools/preview.py    # 本地预览（模拟 GitHub Pages 行为）
 ```
 
 在 GitHub 仓库 `Settings → Pages` 里设置 **Source = Deploy from a branch**，
@@ -44,15 +45,22 @@ python3 build/build.py /my-blog/    # 部署在项目子路径（<user>.github.i
 | `assets/index-*.js` | 注入 react-router `basename`，并把 markdown 里的 `/images/...` 重写成 `<base>/images/...` |
 | `assets/index-*.css` | 把 KaTeX 字体的 `url(/assets/...)` 改成相对路径 `url(./...)` |
 
+重跑脚本后（特别是改了 base 路径时），建议用下面「本地预览」里的服务器确认一遍。
+
 ## 本地预览
 
 ```bash
-python3 build/build.py /my-blog/
-# 用一个会把 404 回退到 404.html 的静态服务器预览（普通 http.server 不会这么做）
+python3 tools/preview.py           # 自动识别 base 路径，默认端口 8099
+python3 tools/preview.py -p 9000   # 换端口
+python3 tools/preview.py --base /  # 手动指定部署在域名根目录
 ```
 
-直接双击 `index.html` 打开也能看到首页，但 `article/...` 这类深链接需要一个
-支持 404 回退的静态服务器。
+`tools/preview.py` 模拟了 GitHub Pages 的两个关键行为：把 URL 剥掉 base 前缀后
+映射到仓库内文件，以及路径未命中时回退到 `404.html`。直接用
+`python3 -m http.server` 会让 `/article/<slug>` 这类深链接 404，看起来像坏了。
+
+也可以直接双击 `index.html` 看首页，但深链接同样需要上面这个服务器（或任何
+支持 404 回退的静态服务器）。
 
 ## 内容
 
