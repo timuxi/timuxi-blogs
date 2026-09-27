@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "vim-workflow",
+    "title": "Vim 高效编辑工作流：从入门到肌肉记忆",
+    "date": "2026-08-20",
+    "category": "工具使用",
+    "tags": [
+      "Vim",
+      "效率",
+      "编辑器"
+    ],
+    "excerpt": "构建以 motion 为核心的编辑思维，掌握组合键的乘法效应，打造个人化配置。",
+    "content": "## Vim 的语法哲学\n\nVim 命令是一种微型语言：\n\n```\n[operator][count][motion]\n```\n\n| 组件 | 含义 | 示例 |\n|------|------|------|\n| operator | 做什么 | d(删除) c(修改) y(复制) |\n| count | 几次 | 3(数字) |\n| motion | 到哪里 | w(词尾) } (段落) G(末行) |\n\n组合：`d3w` = 删除3个词，`c}$` = 修改到行尾。\n\n## 核心 Motion 速记\n\n### 水平移动\n- `w` / `b` / `e` — 词首/词尾/词末\n- `0` / `$` — 行首/行尾\n- `f{char}` / `t{char}` — 找到/直到字符\n\n### 垂直移动\n- `gg` / `G` — 文件首/尾\n- `H` / `M` / `L` — 屏幕顶/中/底\n- `{`} ` — 段落跳转\n\n### 文本对象（最强大的概念）\n- `ciw` — 修改词内内容（不含空格）\n- `da\"` — 删除双引号及内容\n- `vi(` — 选中括号内区域\n- `cit` — 修改 XML/HTML 标签内容\n\n##  registers 与剪贴板\n\n```\n\"ayy     复制当前行到寄存器 a\n\"ap      粘贴寄存器 a\n\"+yy      复制到系统剪贴板\n\"+p       粘贴系统剪贴板\n\".        上次插入的文本\n\":        上次命令行命令\n```\n\n## 实用配置片段\n\n```lua\n-- init.lua (Neovim)\nvim.opt.number = true\nvim.opt.relativenumber = true\nvim.opt.expandtab = true\nvim.opt.shiftwidth = 2\nvim.opt.ignorecase = true\nvim.opt.smartcase = true\nvim.opt.clipboard = \"unnamedplus\"  -- 系统剪贴板同步\nvim.opt.undofile = true            -- 持久撤销历史\n\n-- Leader 键\nvim.g.mapleader = \" \"\n\n-- 窗口切换\nvim.keymap.set(\"n\", \"<C-h>\", \"<C-w>h\")\nvim.keymap.set(\"n\", \"<C-l>\", \"<C-w>l\")\n\n-- 保存退出：qq 替代 :wq\nvim.keymap.set(\"n\", \"qq\", \":wq<CR>\")\n-- 强制退出：Q 替代 :q!\nvim.keymap.set(\"n\", \"Q\", \":q!<CR>\")\n```\n\n## 搜索与替换\n\n```vim\n/pattern     向下搜索\n?pattern     向上搜索\nn / N        下一个 / 上一个\n* / #        搜索光标下词 / 反向搜索\n\n:%s/old/new/g       全文替换\n:%s/old/new/gc      带确认替换\n:v/pattern/d        删除不含 pattern 的行\n```\n\n## 宏录制\n\n1. `q{a-z}` 开始录制到寄存器\n2. 执行编辑操作\n3. `q` 停止录制\n4. `{count}@{register}` 重复执行\n\n示例：将 CSV 列转为 JSON — 录制一行转换，`99@q` 应用到剩余行。\n\n## 学习路线\n\n1. **第一周**：只用 hjkl 移动 + iw 对象，强制脱离方向键\n2. **第二周**：加入 operator + motion 组合\n3. **第三周**：学习 visual block (`<C-v>`) 和 substitute\n4. **持续**：遇到重复操作时问自己「能否用 macro 或组合键完成」"
+  },
+  {
+    "slug": "design-patterns-dft",
+    "title": "《设计模式之禅》读书笔记：SOLID 原则再审视",
+    "date": "2026-08-12",
+    "category": "读书笔记",
+    "tags": [
+      "设计模式",
+      "SOLID",
+      "架构"
+    ],
+    "excerpt": "跳出 GoF 23 种模式的教条，从设计原则层面理解模式的本质目的。",
+    "content": "## 模式不是目的，原则才是\n\n这本书最核心的观点：设计模式是**对特定问题的成熟解法**，但如果不理解背后的原则，生搬硬套会适得其反。\n\n```\n设计原则 → 指导模式使用\n模式     → 原则的具象化实例\n```\n\n## SOLID 五原则 — 我的理解\n\n### S — 单一职责\n\n不是「一个类只做一件事」，而是「一个类只有一个被修改的理由」。\n\n实际中的难点在于**职责的粒度**取决于业务上下文。同一个 User 类在 CRUD 场景职责清晰，但如果混合了认证、授权、序列化，就需要拆分。\n\n### O — 开闭原则\n\n对扩展开放，对修改关闭。\n\nGo 中用 interface 实现（而非继承）：\n\n```go\ntype Notifier interface {\n    Notify(user string, msg string) error\n}\n\n// 新增渠道无需修改已有代码\ntype SlackNotifier struct{}\nfunc (s *SlackNotifier) Notify(user, msg string) error { ... }\n\ntype SMSNotifier struct{}\nfunc (s *SMSNotifier) Notify(user, msg string) error { ... }\n```\n\n### L — 里氏替换\n\n子类必须能替换父类而不改变程序正确性。经典反例：正方形继承矩形。\n\n### I — 接口隔离\n\n宁可有多个专一接口，也不要一个臃肿接口：\n\n```go\n// ❌ 客户端被迫实现不需要的方法\ntype Worker interface {\n    Work()\n    Eat()\n    Sleep()\n}\n\n// ✅ 按角色拆分\ntype Workable interface { Work() }\ntype Eatable interface { Eat() }\ntype Sleepable interface { Sleep() }\n```\n\n### D — 依赖倒置\n\n高层模块不依赖低层模块，两者依赖抽象。这在 Go 中体现为「接受接口，返回结构体」。\n\n## 创建型模式精选\n\n### 工厂方法 vs 抽象工厂\n\n- **工厂方法**：一个产品等级，多种产品种类\n- **抽象工厂**：多个产品等级，保持一致性\n\n实际项目中，配置对象 + `New*()` 函数是最轻量的工厂。\n\n### 建造者（Builder）\n\nGo 中用函数选项模式替代传统 Builder：\n\n```go\ntype Option func(*Server)\n\nfunc WithPort(p int) Option {\n    return func(s *Server) { s.port = p }\n}\n\nfunc NewServer(opts ...Option) *Server {\n    s := &Server{port: 8080, timeout: 30}\n    for _, o := range opts {\n        o(s)\n    }\n    return s\n}\n\n// 使用\nsrv := NewServer(WithPort(9090), WithTimeout(60))\n```\n\n## 行为模式的务实使用\n\n书中强调：**大部分情况下，简单方案优于设计模式。**\n\n| 场景 | 模式选择 | 替代方案 |\n|------|----------|----------|\n| 事件通知 | Observer | channel（Go） |\n| 算法切换 | Strategy | 函数/map |\n| 状态流转 | State | switch + 枚举 |\n| 资源池化 | Flyweight | sync.Pool |\n\n## 反模式警示\n\n1. **模式滥用**：为用模式而用，增加不必要的间接层\n2. **单例地狱**：全局可变状态导致测试困难和隐式耦合\n3. **过早抽象**：没有第二个实现就提取接口\n\n> 好的设计是演化出来的，不是设计出来的。先让代码跑对，再重构出结构。"
+  },
+  {
+    "slug": "deepseek-v4-attention",
+    "title": "DeepSeek V4 注意力架构拆解：Compressor、Indexer、HCA 与 CSA",
+    "date": "2026-09-19",
+    "category": "大模型",
+    "tags": [
+      "DeepSeek",
+      "注意力机制",
+      "KV压缩",
+      "稀疏注意力"
+    ],
+    "excerpt": "从 Compressor 的 softmax 池化，到 Lightning Indexer 的 top-k 选择，再到 HCA / CSA 两种带 Sink 的联合 MQA，梳理长上下文注意力的压缩与稀疏路线。",
+    "content": "## Compressor\n\n用 wkv/wgate + ape 把 $ori_{kv}$ 每 128 个 token 单路、无重叠地 softmax 加权池化成 $cmp_{kv}$：\n\n```python\n# kv, score: [B, T, c]  (HCA, coff=1)\nkv = kv.unflatten(1, (-1, ratio))       # [B, T/m, m, c]\nscore = score.unflatten(1, (-1, ratio)) + self.ape   # ape: [m, c]\nkv = (kv * score.softmax(dim=2)).sum(dim=2)  # dim=2 是块内 m\n#     └── S  C ──────────────    └── 沿 m 求和 → [B, T/m, c]\n# HCA\n```\n\n## Lightning Indexer\n\nIndexer（Lightning Indexer）只在 CSA 里用，任务是给每个 query 从已完成的压缩块里选出 top-k 下标。\n\n```text\n# 计算流\nQ_I × K_Iᵀ → ReLU → ×weights（再对 head 求和）→ 因果 mask → topk\n```\n\n- topk_idxs 的 shape 是 [T, K]，所有主 Attn head 共用同一套下标；\n- $Q_I$ 和主 Q 各自投影，维数和权重都不同。$Q_I$ 的 shape 为 [T, 64, 128]；\n- Indexer 里另有一个 Compressor，$K_I$ 的 shape 为 [T/4, 128]。\n\n## HCA\n\nHCA（Heavily Compressed Attention）是让全长 Query 对「SWA 窗口 $ori_{kv}$ + 因果 Mask 的 $cmp_{kv}$」做一次带 Sink 的联合 softmax MQA。\n\n- 对 $ori_{kv}$ 做 Sliding Window Attention；\n- 对 $cmp_{kv}$ 做 Causal Attention。cmp_kv 的 shape = $(n_q,\\ n_{cmp})$，其中 $n_{cmp} = n / 128$；\n- 采用 Sink：每个 attention head 一个可学习标量 logit，加进 softmax 分母，让该 head 对所有 KV 的权重之和可以 < 1（甚至接近 0）。\n\n![HCA 结构](/images/dsv4/image.png)\n\n## CSA\n\nCSA（Compressed Sparse Attention）是让全长 Q 对「SWA 窗口 $ori_{kv}$ + Indexer 因果 top-k 选出的 $cmp_{kv}$」做一次带 Sink 的联合 softmax MQA。\n\n- 对 $ori_{kv}$ 做 Sliding Window Attention；\n- 对 $cmp_{kv}$ 做 Sparse Attention，挑选 Top-k 个压缩块，不会选到未来块；\n- 采用 Sink：每个 attention head 一个可学习标量 logit，加进 softmax 分母，让该 head 对所有 KV 的权重之和可以 < 1（甚至接近 0）。\n\n![CSA 结构](/images/dsv4/image-2.png)\n\n## HCA 与 CSA 的区别\n\n| 维度 | HCA | CSA |\n|------|-----|-----|\n| 压缩块选择 | 因果 Mask 全选 | Indexer top-k 稀疏挑选 |\n| 额外组件 | 无 | Lightning Indexer |\n| 注意力密度 | 较稠密 | 稀疏 |\n| 适用场景 | 强压缩、低算力 | 长上下文、需精准检索 |\n\n两者都共享「Sliding Window 处理 $ori_{kv}$ + Sink 联合 softmax」这一骨架，差异集中在对 $cmp_{kv}$ 是「全量因果」还是「top-k 稀疏」。"
+  }
+]
